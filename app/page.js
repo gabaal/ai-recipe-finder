@@ -1,51 +1,6 @@
 "use client";
 
-import { useState, Children } from "react";
-import ReactMarkdown from "react-markdown";
-
-// Custom heading component that highlights specific titles.
-function Heading({ level, children, ...props }) {
-  // Extract plain text from the heading's children.
-  const text = Children.toArray(children)
-    .map((child) => (typeof child === "string" ? child : ""))
-    .join("");
-
-  // Debug: log the heading text and whether it's marked for highlight.
-  console.log("Rendering heading:", text);
-
-  // Titles to highlight (case-insensitive).
-  const highlightTitles = [
-    "recipe",
-    "ingredients",
-    "instructions",
-    "estimated cooking time",
-    "ingredient substitution",
-  ];
-
-  // Check if the heading text includes any of the target keywords.
-  const isHighlighted = highlightTitles.some((title) =>
-    text.toLowerCase().includes(title.toLowerCase())
-  );
-
-  // Debug: log the highlight status.
-  console.log("isHighlighted:", isHighlighted, "for heading:", text);
-
-  // Determine the heading tag (h1, h2, etc.).
-  const Tag = `h${level}`;
-
-  return (
-    <Tag
-      {...props}
-      className={`mt-4 mb-2 ${
-        isHighlighted
-          ? "bg-yellow-200 text-blue-700 p-2 rounded"
-          : "text-xl font-semibold"
-      }`}
-    >
-      {children}
-    </Tag>
-  );
-}
+import { useState } from "react";
 
 export default function GenerateRecipePage() {
   const [ingredients, setIngredients] = useState("");
@@ -55,17 +10,20 @@ export default function GenerateRecipePage() {
   const [loadingRecipe, setLoadingRecipe] = useState(false);
   const [loadingImage, setLoadingImage] = useState(false);
 
-  // Function to generate an image based on a snippet of the recipe.
+  // This function generates an image based on the recipe text.
   const generateImageForRecipe = async (recipeText) => {
     setLoadingImage(true);
     try {
+      // Create an image prompt from the recipe—for example, using the first 150 characters.
       const imagePrompt = `A high quality, appetizing photo of the following dish: ${recipeText.substring(
         0,
         150
       )}...`;
       const response = await fetch("/api/generateImage", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ prompt: imagePrompt }),
       });
       const data = await response.json();
@@ -75,19 +33,21 @@ export default function GenerateRecipePage() {
         console.error("Image generation error:", data.error);
       }
     } catch (error) {
-      console.error("Error during image generation:", error);
+      console.error("Unexpected error during image generation:", error);
     }
     setLoadingImage(false);
   };
 
-  // Function to generate a recipe and then its associated image.
+  // This function generates a recipe, and once it's generated, automatically generates an image.
   const handleGenerateRecipe = async (e) => {
     e.preventDefault();
     setLoadingRecipe(true);
+    // Reset previous recipe and image.
     setRecipe("");
     setImageUrl("");
 
     try {
+      // Process comma-separated ingredients.
       const ingredientList = ingredients.split(",").map((item) => item.trim());
       const response = await fetch("/api/generateRecipe", {
         method: "POST",
@@ -100,6 +60,7 @@ export default function GenerateRecipePage() {
       const data = await response.json();
       if (response.ok) {
         setRecipe(data.recipe);
+        // Automatically generate the image for the new recipe.
         await generateImageForRecipe(data.recipe);
       } else {
         setRecipe("Error: " + data.error);
@@ -160,6 +121,7 @@ export default function GenerateRecipePage() {
 
       {recipe && (
         <div className="mt-10 bg-white border border-gray-200 rounded-xl shadow-lg p-6">
+          {/* If an image is being generated, show a loading message; otherwise, display it */}
           {loadingImage ? (
             <div className="flex justify-center mb-4">
               <p>Generating Image...</p>
@@ -178,22 +140,8 @@ export default function GenerateRecipePage() {
             )
           )}
           <h2 className="text-2xl font-bold mb-4">Generated Recipe</h2>
-          <div className="text-gray-800">
-            <div className="prose">
-              <ReactMarkdown
-                components={{
-                  // Override heading tags with our custom component.
-                  h1: ({ node, ...props }) => <Heading level={1} {...props} />,
-                  h2: ({ node, ...props }) => <Heading level={2} {...props} />,
-                  h3: ({ node, ...props }) => <Heading level={3} {...props} />,
-                  h4: ({ node, ...props }) => <Heading level={4} {...props} />,
-                  // Convert ordered lists to unordered lists.
-                  ol: ({ node, ...props }) => <ul {...props} />,
-                }}
-              >
-                {recipe}
-              </ReactMarkdown>
-            </div>
+          <div className="text-gray-800 whitespace-pre-wrap leading-relaxed">
+            {recipe}
           </div>
         </div>
       )}
