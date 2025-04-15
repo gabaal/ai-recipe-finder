@@ -1,103 +1,202 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useState, Children } from "react";
+import ReactMarkdown from "react-markdown";
+
+// Custom heading component that highlights specific titles.
+function Heading({ level, children, ...props }) {
+  // Extract plain text from the heading's children.
+  const text = Children.toArray(children)
+    .map((child) => (typeof child === "string" ? child : ""))
+    .join("");
+
+  // Debug: log the heading text and whether it's marked for highlight.
+  console.log("Rendering heading:", text);
+
+  // Titles to highlight (case-insensitive).
+  const highlightTitles = [
+    "recipe",
+    "ingredients",
+    "instructions",
+    "estimated cooking time",
+    "ingredient substitution",
+  ];
+
+  // Check if the heading text includes any of the target keywords.
+  const isHighlighted = highlightTitles.some((title) =>
+    text.toLowerCase().includes(title.toLowerCase())
+  );
+
+  // Debug: log the highlight status.
+  console.log("isHighlighted:", isHighlighted, "for heading:", text);
+
+  // Determine the heading tag (h1, h2, etc.).
+  const Tag = `h${level}`;
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.js
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <Tag
+      {...props}
+      className={`mt-4 mb-2 ${
+        isHighlighted
+          ? "bg-yellow-200 text-blue-700 p-2 rounded"
+          : "text-xl font-semibold"
+      }`}
+    >
+      {children}
+    </Tag>
+  );
+}
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+export default function GenerateRecipePage() {
+  const [ingredients, setIngredients] = useState("");
+  const [dietaryPreferences, setDietaryPreferences] = useState("");
+  const [recipe, setRecipe] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [loadingRecipe, setLoadingRecipe] = useState(false);
+  const [loadingImage, setLoadingImage] = useState(false);
+
+  // Function to generate an image based on a snippet of the recipe.
+  const generateImageForRecipe = async (recipeText) => {
+    setLoadingImage(true);
+    try {
+      const imagePrompt = `A high quality, appetizing photo of the following dish: ${recipeText.substring(
+        0,
+        150
+      )}...`;
+      const response = await fetch("/api/generateImage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: imagePrompt }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setImageUrl(data.imageUrl);
+      } else {
+        console.error("Image generation error:", data.error);
+      }
+    } catch (error) {
+      console.error("Error during image generation:", error);
+    }
+    setLoadingImage(false);
+  };
+
+  // Function to generate a recipe and then its associated image.
+  const handleGenerateRecipe = async (e) => {
+    e.preventDefault();
+    setLoadingRecipe(true);
+    setRecipe("");
+    setImageUrl("");
+
+    try {
+      const ingredientList = ingredients.split(",").map((item) => item.trim());
+      const response = await fetch("/api/generateRecipe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ingredients: ingredientList,
+          dietaryPreferences: dietaryPreferences.trim(),
+        }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setRecipe(data.recipe);
+        await generateImageForRecipe(data.recipe);
+      } else {
+        setRecipe("Error: " + data.error);
+      }
+    } catch (error) {
+      console.error("Unexpected error:", error);
+      setRecipe("An unexpected error occurred while generating the recipe.");
+    }
+    setLoadingRecipe(false);
+  };
+
+  return (
+    <div className="max-w-3xl mx-auto py-12 px-6">
+      <h1 className="text-4xl font-extrabold text-center mb-10">
+        AI-Driven Recipe &amp; Image Generation
+      </h1>
+      <form onSubmit={handleGenerateRecipe} className="space-y-6">
+        <div>
+          <label
+            htmlFor="ingredients"
+            className="block text-lg font-semibold mb-2"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+            Ingredients (comma separated)
+          </label>
+          <input
+            id="ingredients"
+            type="text"
+            value={ingredients}
+            onChange={(e) => setIngredients(e.target.value)}
+            placeholder="e.g., tomato, basil, mozzarella"
+            className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+        <div>
+          <label
+            htmlFor="dietaryPreferences"
+            className="block text-lg font-semibold mb-2"
+          >
+            Dietary Preferences (optional)
+          </label>
+          <input
+            id="dietaryPreferences"
+            type="text"
+            value={dietaryPreferences}
+            onChange={(e) => setDietaryPreferences(e.target.value)}
+            placeholder="e.g., vegetarian, gluten-free"
+            className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+        </div>
+        <button
+          type="submit"
+          disabled={loadingRecipe}
+          className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 transition-all disabled:opacity-50"
         >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          {loadingRecipe ? "Generating Recipe..." : "Generate Recipe"}
+        </button>
+      </form>
+
+      {recipe && (
+        <div className="mt-10 bg-white border border-gray-200 rounded-xl shadow-lg p-6">
+          {loadingImage ? (
+            <div className="flex justify-center mb-4">
+              <p>Generating Image...</p>
+            </div>
+          ) : (
+            imageUrl && (
+              <div className="flex justify-center mb-4">
+                <img
+                  src={imageUrl}
+                  alt="Generated Recipe"
+                  className="rounded-lg border border-gray-200 shadow-lg"
+                  width="512"
+                  height="512"
+                />
+              </div>
+            )
+          )}
+          <h2 className="text-2xl font-bold mb-4">Generated Recipe</h2>
+          <div className="text-gray-800">
+            <div className="prose">
+              <ReactMarkdown
+                components={{
+                  // Override heading tags with our custom component.
+                  h1: ({ node, ...props }) => <Heading level={1} {...props} />,
+                  h2: ({ node, ...props }) => <Heading level={2} {...props} />,
+                  h3: ({ node, ...props }) => <Heading level={3} {...props} />,
+                  h4: ({ node, ...props }) => <Heading level={4} {...props} />,
+                  // Convert ordered lists to unordered lists.
+                  ol: ({ node, ...props }) => <ul {...props} />,
+                }}
+              >
+                {recipe}
+              </ReactMarkdown>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
